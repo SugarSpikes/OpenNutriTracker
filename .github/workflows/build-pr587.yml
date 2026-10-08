@@ -22,20 +22,25 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.47.6"
+          flutter-version: "3.44.6"
           cache: true
+
+      - name: Create build-only .env
+        run: |
+          cat > .env <<'EOF'
+          FDC_API_KEY="BUILD_ONLY"
+          SENTRY_DNS="DNS_URL"
+          SUPABASE_PROJECT_URL="PROJECT_URL"
+          SUPABASE_PROJECT_ANON_KEY="ANON_KEY"
+          EOF
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Generate code
-        env:
-          FDC_API_KEY: "build-only-placeholder"
         run: dart run build_runner build
 
       - name: Build APK
-        env:
-          FDC_API_KEY: "build-only-placeholder"
         run: flutter build apk --debug
 
       - name: Upload APK
