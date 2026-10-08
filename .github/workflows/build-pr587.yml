@@ -1,42 +1,50 @@
 name: Build PR 587 APK
-
 on:
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.6'
           channel: stable
           cache: true
-
       - name: Create environment file
         run: cp .env.example .env
-
       - name: Install dependencies
         run: flutter pub get
-
       - name: Generate code
         run: dart run build_runner build
-
-      - name: Build APK
-        run: flutter build apk --debug
-
+      - name: Build APK with detailed logs
+        run: |
+          set -o pipefail
+          flutter build apk --debug --verbose 2>&1 | tee build-log.txt
+      - name: Show APK and Gradle outputs
+        if: always()
+        run: |
+          find build -type f \( -name '*.apk' -o -name '*gradle*' \) -print | head -200
+          find android -type f -name '*gradle*' -print
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenNutriTracker-build-diagnostics
+          path: |
+            build-log.txt
+            build/app/outputs/
+            build/app/
+          if-no-files-found: ignore
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: OpenNutriTracker-PR587-debug
