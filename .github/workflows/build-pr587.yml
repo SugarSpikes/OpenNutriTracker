@@ -1,4 +1,4 @@
-name: Build OpenNutriTracker PR 587
+name: Build PR 587 APK
 
 on:
   workflow_dispatch:
@@ -8,28 +8,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout PR 587
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: build-pr587
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.44.6'
           channel: stable
           cache: true
+
+      - name: Create environment file
+        run: cp .env.example .env
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Generate code
-        run: dart run build_runner build --delete-conflicting-outputs
+        run: dart run build_runner build
 
       - name: Build APK
         run: flutter build apk --debug
@@ -37,5 +39,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: OpenNutriTracker-PR587
+          name: OpenNutriTracker-PR587-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
