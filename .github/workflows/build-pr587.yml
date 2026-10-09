@@ -40,8 +40,7 @@ jobs:
           name: OpenNutriTracker-build-diagnostics
           path: |
             build-log.txt
-            build/app/outputs/
-            build/app/
+              build/app/outputs/flutter-apk/*.apk
           if-no-files-found: ignore
       - name: Upload APK
         if: success()
