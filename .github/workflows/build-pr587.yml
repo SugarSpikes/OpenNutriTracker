@@ -27,7 +27,7 @@ jobs:
       - name: Build APK with detailed logs
         run: |
           set -o pipefail
-          flutter build apk --debug --verbose 2>&1 | tee build-log.txt
+          flutter build apk --flavor full --debug --verbose 2>&1 | tee build-log.txt
       - name: Show APK and Gradle outputs
         if: always()
         run: |
@@ -48,4 +48,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OpenNutriTracker-PR587-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: build/app/outputs/flutter-apk/app-full-debug.apk
