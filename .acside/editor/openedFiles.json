@@ -1,0 +1,35 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/OpenNutriTracker/lib/core/presentation/main_screen.dart",
+      "selection": {
+        "end": {
+          "column": 52,
+          "index": 2593,
+          "line": 56
+        },
+        "start": {
+          "column": 52,
+          "index": 2593,
+          "line": 56
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/OpenNutriTracker/android/build.gradle",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 322,
+          "line": 18
+        },
+        "start": {
+          "column": 0,
+          "index": 322,
+          "line": 18
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/OpenNutriTracker/android/build.gradle"
+}

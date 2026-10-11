@@ -75,30 +75,8 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(S.of(ctx).importMealConfirmTitle(parsed.intakes.length)),
-        content: Text(S.of(ctx).shareJsonImportContent),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(S.of(ctx).dialogCancelLabel),
-          ),
-          Semantics(
-            identifier: 'share-json-import-confirm',
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(S.of(ctx).dialogOKLabel),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    final result = await locator<ImportMealsJsonUsecase>().importFromJsonString(text);
+    final result =
+        await locator<ImportMealsJsonUsecase>().importFromJsonString(text);
     if (!mounted) return;
 
     locator<HomeBloc>().add(const LoadItemsEvent());

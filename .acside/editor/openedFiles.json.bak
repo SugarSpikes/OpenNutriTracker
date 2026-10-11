@@ -1,0 +1,20 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/OpenNutriTracker/lib/core/presentation/main_screen.dart",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 9732,
+          "line": 286
+        },
+        "start": {
+          "column": 0,
+          "index": 9732,
+          "line": 286
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/OpenNutriTracker/lib/core/presentation/main_screen.dart"
+}
