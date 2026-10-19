@@ -64,6 +64,26 @@ class JsonMealImporter {
   static const _kUnit = 'unit';
   static const _kDate = 'date';
   static const _kServingSize = 'serving_size';
+  static const _kSugars = 'sugars';
+static const _kSaturatedFat = 'saturatedFat';
+static const _kFiber = 'fiber';
+static const _kMonounsaturatedFat = 'monounsaturatedFat';
+static const _kPolyunsaturatedFat = 'polyunsaturatedFat';
+static const _kTransFat = 'transFat';
+static const _kCholesterol = 'cholesterol';
+static const _kSodium = 'sodium';
+static const _kPotassium = 'potassium';
+static const _kMagnesium = 'magnesium';
+static const _kCalcium = 'calcium';
+static const _kIron = 'iron';
+static const _kZinc = 'zinc';
+static const _kPhosphorus = 'phosphorus';
+static const _kVitaminA = 'vitaminA';
+static const _kVitaminC = 'vitaminC';
+static const _kVitaminD = 'vitaminD';
+static const _kVitaminB6 = 'vitaminB6';
+static const _kVitaminB12 = 'vitaminB12';
+static const _kNiacin = 'niacin';
 
   static const _requiredKeys = <String>[_kName, _kKcal, _kProtein, _kCarbs, _kFat];
 
@@ -72,13 +92,33 @@ class JsonMealImporter {
   /// optional ones (mealType, amount, unit, date). The shape mirrors the
   /// CSV sample so a user familiar with one path can read the other.
   static String sampleJson() {
-    return '''[
+  return '''[
   {
     "name": "Banana",
     "kcal": 89,
     "protein": 1.1,
     "carbs": 22.8,
     "fat": 0.3,
+    "sugars": 12.2,
+    "saturatedFat": 0.1,
+    "fiber": 2.6,
+    "monounsaturatedFat": 0.0,
+    "polyunsaturatedFat": 0.1,
+    "transFat": 0.0,
+    "cholesterol": 0,
+    "sodium": 1,
+    "potassium": 358,
+    "magnesium": 27,
+    "calcium": 5,
+    "iron": 0.26,
+    "zinc": 0.15,
+    "phosphorus": 22,
+    "vitaminA": 3,
+    "vitaminC": 8.7,
+    "vitaminD": 0,
+    "vitaminB6": 0.367,
+    "vitaminB12": 0,
+    "niacin": 0.665,
     "mealType": "snack",
     "amount": 100,
     "unit": "g"
@@ -89,6 +129,9 @@ class JsonMealImporter {
     "protein": 6.5,
     "carbs": 17.2,
     "fat": 5.6,
+    "sugars": 7.0,
+    "saturatedFat": 2.5,
+    "fiber": 2.0,
     "mealType": "breakfast",
     "amount": 250,
     "unit": "g",
@@ -105,8 +148,7 @@ class JsonMealImporter {
   }
 ]
 ''';
-  }
-
+}
   /// Parse [jsonContent]. [now] is injectable for tests so we don't have
   /// to freeze time globally; production callers should leave it null and
   /// the importer uses [DateTime.now].
@@ -177,13 +219,73 @@ class JsonMealImporter {
       }
 
       final kcalTotal = _asDouble(entry[_kKcal]);
-      final proteinTotal = _asDouble(entry[_kProtein]);
-      final carbsTotal = _asDouble(entry[_kCarbs]);
-      final fatTotal = _asDouble(entry[_kFat]);
-      if (kcalTotal == null || proteinTotal == null || carbsTotal == null || fatTotal == null) {
-        errors.add('Entry $entryNum: kcal / protein / carbs / fat must all be numbers');
-        continue;
-      }
+final proteinTotal = _asDouble(entry[_kProtein]);
+final carbsTotal = _asDouble(entry[_kCarbs]);
+final fatTotal = _asDouble(entry[_kFat]);
+
+if (kcalTotal == null ||
+    proteinTotal == null ||
+    carbsTotal == null ||
+    fatTotal == null) {
+  errors.add(
+    'Entry $entryNum: kcal / protein / carbs / fat must all be numbers',
+  );
+  continue;
+}
+
+// Optional nutrient values are totals for the logged portion, just like
+// kcal, protein, carbs, and fat. Missing values remain null.
+final optionalNutrientKeys = <String, String>{
+  _kSugars: 'sugars',
+  _kSaturatedFat: 'saturatedFat',
+  _kFiber: 'fiber',
+  _kMonounsaturatedFat: 'monounsaturatedFat',
+  _kPolyunsaturatedFat: 'polyunsaturatedFat',
+  _kTransFat: 'transFat',
+  _kCholesterol: 'cholesterol',
+  _kSodium: 'sodium',
+  _kPotassium: 'potassium',
+  _kMagnesium: 'magnesium',
+  _kCalcium: 'calcium',
+  _kIron: 'iron',
+  _kZinc: 'zinc',
+  _kPhosphorus: 'phosphorus',
+  _kVitaminA: 'vitaminA',
+  _kVitaminC: 'vitaminC',
+  _kVitaminD: 'vitaminD',
+  _kVitaminB6: 'vitaminB6',
+  _kVitaminB12: 'vitaminB12',
+  _kNiacin: 'niacin',
+};
+
+final optionalNutrients = <String, double?>{};
+
+var invalidOptionalNutrient = false;
+
+for (final key in optionalNutrientKeys.keys) {
+  final rawValue = entry[key];
+
+  if (rawValue == null) {
+    optionalNutrients[key] = null;
+    continue;
+  }
+
+  final parsedValue = _asDouble(rawValue);
+
+  if (parsedValue == null || !parsedValue.isFinite || parsedValue < 0) {
+    errors.add(
+      'Entry $entryNum: "$key" must be a non-negative number when supplied',
+    );
+    invalidOptionalNutrient = true;
+    break;
+  }
+
+  optionalNutrients[key] = parsedValue;
+}
+
+if (invalidOptionalNutrient) {
+  continue;
+}
 
       final mealTypeRaw = (entry[_kMealType]?.toString().trim() ?? '').toLowerCase();
       final IntakeTypeEntity mealType;
@@ -248,15 +350,80 @@ class JsonMealImporter {
       // sums multiply per-unit values by the logged amount, so this
       // keeps the displayed kcal/macros faithful to what was pasted.
       final factor = 100.0 / amount;
-      final nutriments = MealNutrimentsEntity(
-        energyKcal100: kcalTotal * factor,
-        carbohydrates100: carbsTotal * factor,
-        fat100: fatTotal * factor,
-        proteins100: proteinTotal * factor,
-        sugars100: null,
-        saturatedFat100: null,
-        fiber100: null,
-      );
+      final factor = 100.0 / amount;
+
+final nutriments = MealNutrimentsEntity(
+  energyKcal100: kcalTotal * factor,
+  carbohydrates100: carbsTotal * factor,
+  fat100: fatTotal * factor,
+  proteins100: proteinTotal * factor,
+
+  sugars100: optionalNutrients[_kSugars] == null
+      ? null
+      : optionalNutrients[_kSugars]! * factor,
+  saturatedFat100: optionalNutrients[_kSaturatedFat] == null
+      ? null
+      : optionalNutrients[_kSaturatedFat]! * factor,
+  fiber100: optionalNutrients[_kFiber] == null
+      ? null
+      : optionalNutrients[_kFiber]! * factor,
+
+  monounsaturatedFat100:
+      optionalNutrients[_kMonounsaturatedFat] == null
+          ? null
+          : optionalNutrients[_kMonounsaturatedFat]! * factor,
+  polyunsaturatedFat100:
+      optionalNutrients[_kPolyunsaturatedFat] == null
+          ? null
+          : optionalNutrients[_kPolyunsaturatedFat]! * factor,
+  transFat100: optionalNutrients[_kTransFat] == null
+      ? null
+      : optionalNutrients[_kTransFat]! * factor,
+  cholesterol100: optionalNutrients[_kCholesterol] == null
+      ? null
+      : optionalNutrients[_kCholesterol]! * factor,
+
+  sodium100: optionalNutrients[_kSodium] == null
+      ? null
+      : optionalNutrients[_kSodium]! * factor,
+  potassium100: optionalNutrients[_kPotassium] == null
+      ? null
+      : optionalNutrients[_kPotassium]! * factor,
+  magnesium100: optionalNutrients[_kMagnesium] == null
+      ? null
+      : optionalNutrients[_kMagnesium]! * factor,
+  calcium100: optionalNutrients[_kCalcium] == null
+      ? null
+      : optionalNutrients[_kCalcium]! * factor,
+  iron100: optionalNutrients[_kIron] == null
+      ? null
+      : optionalNutrients[_kIron]! * factor,
+  zinc100: optionalNutrients[_kZinc] == null
+      ? null
+      : optionalNutrients[_kZinc]! * factor,
+  phosphorus100: optionalNutrients[_kPhosphorus] == null
+      ? null
+      : optionalNutrients[_kPhosphorus]! * factor,
+
+  vitaminA100: optionalNutrients[_kVitaminA] == null
+      ? null
+      : optionalNutrients[_kVitaminA]! * factor,
+  vitaminC100: optionalNutrients[_kVitaminC] == null
+      ? null
+      : optionalNutrients[_kVitaminC]! * factor,
+  vitaminD100: optionalNutrients[_kVitaminD] == null
+      ? null
+      : optionalNutrients[_kVitaminD]! * factor,
+  vitaminB6100: optionalNutrients[_kVitaminB6] == null
+      ? null
+      : optionalNutrients[_kVitaminB6]! * factor,
+  vitaminB12100: optionalNutrients[_kVitaminB12] == null
+      ? null
+      : optionalNutrients[_kVitaminB12]! * factor,
+  niacin100: optionalNutrients[_kNiacin] == null
+      ? null
+      : optionalNutrients[_kNiacin]! * factor,
+);
 
       final meal = MealEntity(
         code: null,

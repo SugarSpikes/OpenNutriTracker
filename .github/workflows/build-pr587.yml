@@ -24,6 +24,10 @@ jobs:
         run: flutter pub get
       - name: Generate code
         run: dart run build_runner build
+      - name: Run tests
+        run: flutter test
+      - name: Analyze Dart code
+        run: flutter analyze
       - name: Build APK with detailed logs
         run: |
           set -o pipefail
@@ -40,7 +44,7 @@ jobs:
           name: OpenNutriTracker-build-diagnostics
           path: |
             build-log.txt
-              build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/flutter-apk/*.apk
           if-no-files-found: ignore
       - name: Upload APK
         if: success()

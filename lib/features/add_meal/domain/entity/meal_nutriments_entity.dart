@@ -37,6 +37,10 @@ class MealNutrimentsEntity extends Equatable {
   final double? vitaminB12100; // µg
   final double? niacin100; // mg (B3)
 
+/// Additional nutrients not represented by dedicated fields above.
+/// Values are normalized per 100 g; units must be defined by nutrient ID.
+final Map<String, double> additionalNutrientsPer100;
+
   double? get energyPerUnit => _getValuePerUnit(energyKcal100);
 
   double? get carbohydratesPerUnit => _getValuePerUnit(carbohydrates100);
