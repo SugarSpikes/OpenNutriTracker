@@ -350,7 +350,6 @@ if (invalidOptionalNutrient) {
       // sums multiply per-unit values by the logged amount, so this
       // keeps the displayed kcal/macros faithful to what was pasted.
       final factor = 100.0 / amount;
-      final factor = 100.0 / amount;
 
 final nutriments = MealNutrimentsEntity(
   energyKcal100: kcalTotal * factor,
