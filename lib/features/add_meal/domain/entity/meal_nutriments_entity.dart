@@ -16,11 +16,13 @@ class MealNutrimentsEntity extends Equatable {
   final double? sugars100;
   final double? saturatedFat100;
   final double? fiber100;
+
   // #237: Extended lipid profile
   final double? monounsaturatedFat100;
   final double? polyunsaturatedFat100;
   final double? transFat100;
   final double? cholesterol100;
+
   // #237: Minerals (mg per 100g)
   final double? sodium100;
   final double? potassium100;
@@ -29,6 +31,7 @@ class MealNutrimentsEntity extends Equatable {
   final double? iron100;
   final double? zinc100;
   final double? phosphorus100;
+
   // #237: Vitamins
   final double? vitaminA100; // µg RAE
   final double? vitaminC100; // mg
@@ -37,9 +40,11 @@ class MealNutrimentsEntity extends Equatable {
   final double? vitaminB12100; // µg
   final double? niacin100; // mg (B3)
 
-/// Additional nutrients not represented by dedicated fields above.
-/// Values are normalized per 100 g; units must be defined by nutrient ID.
-final Map<String, double> additionalNutrientsPer100;
+  /// Additional nutrients not represented by dedicated fields above.
+  ///
+  /// Values are normalized per 100 g. Units must be defined by nutrient ID
+  /// by the source or code that interprets this map.
+  final Map<String, double> additionalNutrientsPer100;
 
   double? get energyPerUnit => _getValuePerUnit(energyKcal100);
 
@@ -49,8 +54,7 @@ final Map<String, double> additionalNutrientsPer100;
 
   double? get proteinsPerUnit => _getValuePerUnit(proteins100);
 
-  /// Returns true when at least one of the extended micronutrient fields
-  /// (lipid profile / minerals / vitamins from #237) has a value.
+  /// Returns true when at least one extended nutrient field has a value.
   bool get hasMicronutrientData =>
       monounsaturatedFat100 != null ||
       polyunsaturatedFat100 != null ||
@@ -68,7 +72,8 @@ final Map<String, double> additionalNutrientsPer100;
       vitaminD100 != null ||
       vitaminB6100 != null ||
       vitaminB12100 != null ||
-      niacin100 != null;
+      niacin100 != null ||
+      additionalNutrientsPer100.isNotEmpty;
 
   const MealNutrimentsEntity({
     required this.energyKcal100,
@@ -95,6 +100,7 @@ final Map<String, double> additionalNutrientsPer100;
     this.vitaminB6100,
     this.vitaminB12100,
     this.niacin100,
+    this.additionalNutrientsPer100 = const {},
   });
 
   factory MealNutrimentsEntity.empty() => const MealNutrimentsEntity(
@@ -143,9 +149,8 @@ final Map<String, double> additionalNutrientsPer100;
   ) {
     if (offNutriments == null) return MealNutrimentsEntity.empty();
 
-    // 1. OFF product nutriments can either be String, int, double or null
-    // 2. Extension function asDoubleOrNull does not work on a dynamic data
-    // type, so cast to it Object?
+    // OFF values can be String, int, double or null.
+    // Cast to Object? before using asDoubleOrNull.
     return MealNutrimentsEntity(
       energyKcal100:
           (offNutriments.energy_kcal_100g as Object?).asDoubleOrNull(),
@@ -157,7 +162,8 @@ final Map<String, double> additionalNutrientsPer100;
       saturatedFat100:
           (offNutriments.saturated_fat_100g as Object?).asDoubleOrNull(),
       fiber100: (offNutriments.fiber_100g as Object?).asDoubleOrNull(),
-      // #237: Extended lipid profile
+
+      // Extended lipid profile
       monounsaturatedFat100:
           (offNutriments.monounsaturated_fat_100g as Object?).asDoubleOrNull(),
       polyunsaturatedFat100:
@@ -165,7 +171,8 @@ final Map<String, double> additionalNutrientsPer100;
       transFat100: (offNutriments.trans_fat_100g as Object?).asDoubleOrNull(),
       cholesterol100:
           (offNutriments.cholesterol_100g as Object?).asDoubleOrNull(),
-      // #237: Minerals
+
+      // Minerals
       sodium100: (offNutriments.sodium_100g as Object?).asDoubleOrNull(),
       potassium100: (offNutriments.potassium_100g as Object?).asDoubleOrNull(),
       magnesium100: (offNutriments.magnesium_100g as Object?).asDoubleOrNull(),
@@ -174,7 +181,8 @@ final Map<String, double> additionalNutrientsPer100;
       zinc100: (offNutriments.zinc_100g as Object?).asDoubleOrNull(),
       phosphorus100:
           (offNutriments.phosphorus_100g as Object?).asDoubleOrNull(),
-      // #237: Vitamins
+
+      // Vitamins
       vitaminA100: (offNutriments.vitamin_a_100g as Object?).asDoubleOrNull(),
       vitaminC100: (offNutriments.vitamin_c_100g as Object?).asDoubleOrNull(),
       vitaminD100: (offNutriments.vitamin_d_100g as Object?).asDoubleOrNull(),
@@ -185,9 +193,9 @@ final Map<String, double> additionalNutrientsPer100;
     );
   }
 
-  /// Nutrients from the Supabase `food_summary` view. The view already
-  /// pivots the canonical per-100g nutrient rows into flat columns in the
-  /// app's units, so this is a straight field-for-field copy.
+  /// Nutrients from the Supabase food_summary view.
+  ///
+  /// The view pivots canonical per-100g nutrient rows into flat columns.
   factory MealNutrimentsEntity.fromSpFoodSummary(SpFoodDTO food) {
     return MealNutrimentsEntity(
       energyKcal100: food.energyKcal100,
@@ -224,9 +232,7 @@ final Map<String, double> additionalNutrientsPer100;
         .firstWhereOrNull((nutriment) => nutriment.nutrientId == nutrientId)
         ?.amount;
 
-    // FDC Food nutriments can have different values for Energy [Energy,
-    // Energy (Atwater General Factors), Energy (Atwater Specific Factors)].
-    // Prefer the most-precise Atwater value; fall back to raw total last.
+    // Prefer the most precise Atwater energy value, then fall back.
     final energyTotal = fdcAmount(FDCConst.fdcKcalAtwaterSpecificId) ??
         fdcAmount(FDCConst.fdcKcalAtwaterGeneralId) ??
         fdcAmount(FDCConst.fdcTotalKcalId);
@@ -239,12 +245,14 @@ final Map<String, double> additionalNutrientsPer100;
       sugars100: fdcAmount(FDCConst.fdcTotalSugarId),
       saturatedFat100: fdcAmount(FDCConst.fdcTotalSaturatedFatId),
       fiber100: fdcAmount(FDCConst.fdcTotalDietaryFiberId),
-      // #237: Extended lipid profile
+
+      // Extended lipid profile
       monounsaturatedFat100: fdcAmount(FDCConst.fdcMonounsaturatedFatId),
       polyunsaturatedFat100: fdcAmount(FDCConst.fdcPolyunsaturatedFatId),
       transFat100: fdcAmount(FDCConst.fdcTransFatId),
       cholesterol100: fdcAmount(FDCConst.fdcCholesterolId),
-      // #237: Minerals
+
+      // Minerals
       sodium100: fdcAmount(FDCConst.fdcSodiumId),
       potassium100: fdcAmount(FDCConst.fdcPotassiumId),
       magnesium100: fdcAmount(FDCConst.fdcMagnesiumId),
@@ -252,7 +260,8 @@ final Map<String, double> additionalNutrientsPer100;
       iron100: fdcAmount(FDCConst.fdcIronId),
       zinc100: fdcAmount(FDCConst.fdcZincId),
       phosphorus100: fdcAmount(FDCConst.fdcPhosphorusId),
-      // #237: Vitamins
+
+      // Vitamins
       vitaminA100: fdcAmount(FDCConst.fdcVitaminAId),
       vitaminC100: fdcAmount(FDCConst.fdcVitaminCId),
       vitaminD100: fdcAmount(FDCConst.fdcVitaminDId),
@@ -265,9 +274,8 @@ final Map<String, double> additionalNutrientsPer100;
   static double? _getValuePerUnit(double? valuePer100) {
     if (valuePer100 != null) {
       return valuePer100 / 100;
-    } else {
-      return null;
     }
+    return null;
   }
 
   @override
@@ -276,18 +284,31 @@ final Map<String, double> additionalNutrientsPer100;
         carbohydrates100,
         fat100,
         proteins100,
+        sugars100,
+        saturatedFat100,
+        fiber100,
+        monounsaturatedFat100,
+        polyunsaturatedFat100,
+        transFat100,
+        cholesterol100,
+        sodium100,
+        potassium100,
+        magnesium100,
+        calcium100,
+        iron100,
+        zinc100,
+        phosphorus100,
+        vitaminA100,
+        vitaminC100,
+        vitaminD100,
+        vitaminB6100,
+        vitaminB12100,
+        niacin100,
+        additionalNutrientsPer100,
       ];
 }
 
-/// Outcome of running the three physical-plausibility checks against a
-/// [MealNutrimentsEntity] parsed from a remote source (FDC via Supabase, OFF,
-/// or the direct FDC API). When [isConsistent] is false, [failureReason]
-/// names the first rule that tripped — that is the value to attach to a
-/// Sentry breadcrumb so we can spot systematic upstream problems.
-///
-/// The rules come from issue #222 and are deliberately conservative: they
-/// only fire on data that is physically impossible on a 100g basis, so a
-/// borderline-noisy-but-plausible item is left alone.
+/// Outcome of running physical-plausibility checks against a nutrient entity.
 class NutrimentsValidationResult {
   final bool isConsistent;
   final String? failureReason;
@@ -300,51 +321,47 @@ class NutrimentsValidationResult {
       : isConsistent = false;
 }
 
-/// Tolerance applied to weight-summation and subset-of comparisons. Source
-/// data is typically rounded to 0.1g or 1g, and the per-nutrient values do
-/// not always sum exactly; a small slack keeps us from dropping items that
-/// are merely noisy rather than corrupt.
+/// Tolerance applied to weight-summation and subset comparisons.
 const double _nutrimentsValidationToleranceG = 1.0;
 
-/// Returns true when [nutriments] passes the three physical-plausibility
-/// rules from issue #222:
+/// Returns true when [nutriments] passes the three physical-plausibility rules:
 ///
-///   1. `sugars100 <= carbohydrates100` (sugars are a subset of carbs)
-///   2. `saturatedFat100 <= fat100` (sat fat is a subset of total fat)
-///   3. `carbohydrates100 + fat100 + proteins100 <= 100g` (per-100g basis)
+/// 1. Sugars do not exceed carbohydrates.
+/// 2. Saturated fat does not exceed total fat.
+/// 3. Carbohydrates, fat and protein do not sum to more than 100 g.
 ///
-/// A null on either side of a comparison skips the rule (we cannot prove a
-/// violation without both values). A small tolerance absorbs rounding from
-/// the source.
-///
-/// Convenience wrapper around [validateNutriments] for callers that only
-/// need the pass/fail bit.
+/// Null values skip the corresponding comparison.
 bool isNutrimentsConsistent(MealNutrimentsEntity nutriments) =>
     validateNutriments(nutriments).isConsistent;
 
-/// Full validation result. Use this when you need the failing rule name —
-/// for example, to log a Sentry breadcrumb at the call site that dropped the
-/// item from search results.
-NutrimentsValidationResult validateNutriments(MealNutrimentsEntity nutriments) {
+/// Full validation result, including the first failing rule.
+NutrimentsValidationResult validateNutriments(
+  MealNutrimentsEntity nutriments,
+) {
   final sugars = nutriments.sugars100;
   final carbs = nutriments.carbohydrates100;
-  if (sugars != null && carbs != null && sugars > carbs + _nutrimentsValidationToleranceG) {
+
+  if (sugars != null &&
+      carbs != null &&
+      sugars > carbs + _nutrimentsValidationToleranceG) {
     return const NutrimentsValidationResult.failed('sugars_exceed_carbs');
   }
 
   final satFat = nutriments.saturatedFat100;
   final fat = nutriments.fat100;
-  if (satFat != null && fat != null && satFat > fat + _nutrimentsValidationToleranceG) {
-    return const NutrimentsValidationResult.failed('saturated_fat_exceeds_total_fat');
+
+  if (satFat != null &&
+      fat != null &&
+      satFat > fat + _nutrimentsValidationToleranceG) {
+    return const NutrimentsValidationResult.failed(
+      'saturated_fat_exceeds_total_fat',
+    );
   }
 
-  // Per-100g basis: the weight-bearing macros (carbs + fat + protein) cannot
-  // sum to more than 100g. Fibre is intentionally excluded because it is
-  // typically already inside the carbohydrate total in both FDC and OFF
-  // accounting, so adding it would double-count. Micronutrients are in
-  // mg/µg so they do not enter the sum.
+  // Fibre is excluded because it is generally included in carbohydrates.
   final protein = nutriments.proteins100;
   final macroSum = (carbs ?? 0) + (fat ?? 0) + (protein ?? 0);
+
   if (macroSum > 100 + _nutrimentsValidationToleranceG) {
     return const NutrimentsValidationResult.failed('macros_exceed_100g');
   }
@@ -352,39 +369,29 @@ NutrimentsValidationResult validateNutriments(MealNutrimentsEntity nutriments) {
   return const NutrimentsValidationResult.ok();
 }
 
-/// Maximum relative gap between declared and Atwater-computed energy before a
-/// product is treated as data-incoherent for ranking. Deliberately generous:
-/// across a sample of ~700 Open Food Facts products the legitimate noise floor
-/// (energy/macro rounding, food-specific Atwater factors, the EU/US fibre-in-
-/// carbs convention) reaches ~10-15%, while genuine data errors are gross
-/// (77% to >20000%). 25% sits in the empty gap between the two, so it demotes
-/// real errors without penalising correctly-entered data.
+/// Maximum relative gap between declared and Atwater-computed energy.
 const double atwaterEnergyTolerance = 0.25;
 
-/// Relative difference between the declared energy and the energy implied by
-/// the macros via the general Atwater factors (carbs 4, protein 4, fat 9
-/// kcal/g). Fibre is not added separately for the same reason the macro-sum
-/// check omits it — it is already inside the carbohydrate total here.
+/// Relative difference between declared energy and energy calculated using
+/// the general Atwater factors: carbohydrates 4, protein 4, fat 9 kcal/g.
 ///
-/// Returns null when there is nothing to judge (no declared kcal, or none of
-/// the three macros present); callers should treat null as "no opinion" rather
-/// than as inconsistent, so products with sparse data are ranked on the other
-/// signals instead of being penalised.
+/// Returns null when there is insufficient data to make the comparison.
 double? atwaterEnergyRelativeError(MealNutrimentsEntity nutriments) {
   final energy = nutriments.energyKcal100;
   if (energy == null || energy <= 0) return null;
+
   final carbs = nutriments.carbohydrates100;
   final fat = nutriments.fat100;
   final protein = nutriments.proteins100;
+
   if (carbs == null && fat == null && protein == null) return null;
 
   final computed = 4 * (carbs ?? 0) + 4 * (protein ?? 0) + 9 * (fat ?? 0);
+
   return (energy - computed).abs() / energy;
 }
 
-/// True when a product's declared energy is coherent with its macros (within
-/// [atwaterEnergyTolerance]) or cannot be judged. False only for products that
-/// are computable AND diverge beyond the tolerance — the gross-error outliers.
+/// True when declared energy is coherent with the macros or cannot be judged.
 bool isAtwaterConsistent(MealNutrimentsEntity nutriments) {
   final error = atwaterEnergyRelativeError(nutriments);
   return error == null || error <= atwaterEnergyTolerance;
