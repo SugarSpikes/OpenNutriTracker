@@ -9,6 +9,8 @@ import 'package:opennutritracker/core/utils/locator.dart';
 import 'package:opennutritracker/core/utils/serving_label_localizer.dart';
 import 'package:opennutritracker/core/utils/navigation_options.dart';
 import 'package:opennutritracker/core/utils/navigation_predicates.dart';
+import 'package:opennutritracker/features/add_meal/presentation/log_tray.dart';
+import 'package:opennutritracker/features/add_meal/util/portion_unit.dart';
 import 'package:opennutritracker/features/add_meal/domain/entity/meal_entity.dart';
 import 'package:opennutritracker/features/diary/presentation/bloc/calendar_day_bloc.dart';
 import 'package:opennutritracker/features/diary/presentation/bloc/diary_bloc.dart';
@@ -26,7 +28,15 @@ class MealDetailBottomSheet extends StatefulWidget {
 
   final String selectedUnit;
 
+  /// Whether the user chose imperial food units, which the serving entry's
+  /// label follows like every other amount on the screen.
+  final bool usesImperialUnits;
+
   final Function(String?, String?) onQuantityOrUnitChanged;
+
+  /// The add-food screen's "To log" list, when the sheet was opened from it.
+  /// The button then adds to the list instead of logging.
+  final LogTray? logTray;
 
   const MealDetailBottomSheet({
     super.key,
@@ -37,6 +47,8 @@ class MealDetailBottomSheet extends StatefulWidget {
     required this.onQuantityOrUnitChanged,
     required this.mealDetailBloc,
     required this.selectedUnit,
+    this.usesImperialUnits = false,
+    this.logTray,
   });
 
   @override
@@ -45,6 +57,12 @@ class MealDetailBottomSheet extends StatefulWidget {
 
 class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
   final _quantityFocusNode = FocusNode();
+
+  /// Set from the first tap on Add until its submission ends. The save can
+  /// wait for the tracked-day lock (#1317) with the sheet still open, and
+  /// a second tap would pass the duplicate check again and log the meal
+  /// twice.
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -108,6 +126,9 @@ class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final productMissingRequiredInfo = _hasRequiredProductInfoMissing();
+    final missingFieldsText = S.of(
+      context,
+    ).missingProductInfoFields(_missingRequiredProductInfo().join(', '));
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final palette = isDark ? AppPalette.dark : AppPalette.light;
     return BottomSheet(
@@ -237,7 +258,8 @@ class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
                         child: SizedBox(
                           width: double.infinity, // Make button full width
                           child: FilledButton.icon(
-                            onPressed: !productMissingRequiredInfo
+                            onPressed:
+                                !productMissingRequiredInfo && !_submitting
                                 ? () {
                                     onAddButtonPressed(context);
                                   }
@@ -251,13 +273,18 @@ class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
                               ),
                             ),
                             icon: const Icon(Icons.add_rounded),
-                            label: Text(S.of(context).addLabel),
+                            label: Text(
+                              widget.logTray == null
+                                  ? S.of(context).addLabel
+                                  : S.of(context).addToListLabel,
+                            ),
                           ),
                         ),
                       ),
                       productMissingRequiredInfo
                           ? Text(
-                              S.of(context).missingProductInfo,
+                              '${S.of(context).missingProductInfo}\n'
+                              '$missingFieldsText',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: Theme.of(context).colorScheme.error,
@@ -275,19 +302,37 @@ class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
     );
   }
 
-  bool _hasRequiredProductInfoMissing() {
+  bool _hasRequiredProductInfoMissing() =>
+      _missingRequiredProductInfo().isNotEmpty;
+
+  /// The labels of the required values the product lacks, so the warning
+  /// can say which one is missing (#1474).
+  List<String> _missingRequiredProductInfo() {
     final productNutriments = widget.product.nutriments;
-    if (productNutriments.energyKcal100 == null ||
-        productNutriments.carbohydrates100 == null ||
-        productNutriments.fat100 == null ||
-        productNutriments.proteins100 == null) {
-      return true;
-    } else {
-      return false;
-    }
+    final s = S.of(context);
+    return [
+      if (productNutriments.energyKcal100 == null) s.energyLabel,
+      if (productNutriments.carbohydrates100 == null) s.carbohydrateLabel,
+      if (productNutriments.fat100 == null) s.fatLabel,
+      if (productNutriments.proteins100 == null) s.proteinLabel,
+    ];
   }
 
   Future<void> onAddButtonPressed(BuildContext context) async {
+    // Checked here, not only through the disabled button: a second tap
+    // can land before the rebuild that disables it.
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await _submit(context);
+    } finally {
+      // A save that succeeds leaves the sheet; a rejected quantity, a
+      // cancelled duplicate or a failed save lets the user try again.
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _submit(BuildContext context) async {
     // Validate quantity (#209, #210)
     final quantityText = widget.quantityTextController.text.replaceAll(
       ',',
@@ -327,7 +372,40 @@ class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
       if (shouldAdd != true) return;
     }
 
-    widget.mealDetailBloc.addIntake(
+    final logTray = widget.logTray;
+    if (logTray != null) {
+      // Onto the list, with exactly what `addIntake` below would have been
+      // given; the add-food screen writes it when the list is logged.
+      final state = widget.mealDetailBloc.state;
+      logTray.add(
+        LogTrayItem(
+          meal: widget.product,
+          unit: storedUnit(state.selectedUnit),
+          amount: double.parse(
+            state.totalQuantityConverted.replaceAll(',', '.'),
+          ),
+          amountLabel: logTrayAmountLabel(
+            context,
+            quantity,
+            state.selectedUnit,
+            widget.product,
+          ),
+        ),
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(S.of(context).logTrayAddedLabel)));
+      // Back to the list, past the scanner too when that is how the user
+      // came: it replaced itself with this screen.
+      Navigator.of(
+        context,
+      ).popUntil(namedRouteOrFirst(NavigationOptions.addMealRoute));
+      return;
+    }
+
+    // The refreshes below only see the intake once it is stored, which
+    // can wait for the tracked-day lock (#1317).
+    await widget.mealDetailBloc.addIntake(
       context,
       widget.mealDetailBloc.state.selectedUnit,
       widget.mealDetailBloc.state.totalQuantityConverted,
@@ -343,6 +421,7 @@ class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
     locator<DiaryBloc>().add(const LoadDiaryYearEvent());
     locator<CalendarDayBloc>().add(const RefreshCalendarDayEvent());
 
+    if (!context.mounted) return;
     // Show snackbar and return to dashboard
     ScaffoldMessenger.of(
       context,
@@ -415,9 +494,13 @@ class _MealDetailBottomSheetState extends State<MealDetailBottomSheet> {
     final servingSize = widget.product.servingSize;
     // Serving labels are stored in English (see MealEntity._spServingLabel);
     // translate the common household units at display time.
-    final servingText = (servingSize != null && servingSize.trim().isNotEmpty)
+    final servingLabel = (servingSize != null && servingSize.trim().isNotEmpty)
         ? localizeServingLabel(S.of(context), servingSize)
         : '${S.of(context).servingLabel} (${widget.product.servingQuantity} ${widget.product.servingUnit})';
+    // The label is the food's own text, in grams or millilitres (#1368).
+    final servingText = widget.usesImperialUnits
+        ? imperialServingLabel(S.of(context), servingLabel)
+        : servingLabel;
     return DropdownMenuItem(
       value: UnitDropdownItem.serving.toString(),
       child: Text(servingText, overflow: TextOverflow.ellipsis, maxLines: 1),
