@@ -212,4 +212,85 @@ void main() {
       }
     });
   });
+
+
+  test('imports all supported optional nutrients', () {
+  const json = '''
+  {
+    "name": "Test food",
+    "kcal": 100,
+    "protein": 5,
+    "carbs": 10,
+    "fat": 4,
+    "sugars": 3,
+    "saturatedFat": 2,
+    "fiber": 1,
+    "monounsaturatedFat": 1.5,
+    "polyunsaturatedFat": 0.5,
+    "transFat": 0.1,
+    "cholesterol": 10,
+    "sodium": 20,
+    "potassium": 30,
+    "magnesium": 40,
+    "calcium": 50,
+    "iron": 0.6,
+    "zinc": 0.7,
+    "phosphorus": 60,
+    "vitaminA": 70,
+    "vitaminC": 8,
+    "vitaminD": 2,
+    "vitaminB6": 0.4,
+    "vitaminB12": 1.2,
+    "niacin": 1.8,
+    "amount": 50,
+    "unit": "g",
+    "mealType": "lunch",
+    "date": "2026-05-13"
+  }
+  ''';
+
+  final result = JsonMealImporter.parse(
+    json,
+    now: DateTime(2026, 5, 13),
+  );
+
+  expect(result.errors, isEmpty);
+  expect(result.intakes, hasLength(1));
+
+  final nutriments = result.intakes.single.meal.nutriments;
+
+  // The supplied values are totals for 50 g. The stored values
+  // should therefore be twice the supplied values per 100 g.
+  expect(nutriments.energyKcal100, closeTo(200, 0.001));
+  expect(nutriments.proteins100, closeTo(10, 0.001));
+  expect(nutriments.carbohydrates100, closeTo(20, 0.001));
+  expect(nutriments.fat100, closeTo(8, 0.001));
+
+  expect(nutriments.sugars100, closeTo(6, 0.001));
+  expect(nutriments.saturatedFat100, closeTo(4, 0.001));
+  expect(nutriments.fiber100, closeTo(2, 0.001));
+  expect(nutriments.monounsaturatedFat100, closeTo(3, 0.001));
+  expect(nutriments.polyunsaturatedFat100, closeTo(1, 0.001));
+  expect(nutriments.transFat100, closeTo(0.2, 0.001));
+  expect(nutriments.cholesterol100, closeTo(20, 0.001));
+
+  expect(nutriments.sodium100, closeTo(40, 0.001));
+  expect(nutriments.potassium100, closeTo(60, 0.001));
+  expect(nutriments.magnesium100, closeTo(80, 0.001));
+  expect(nutriments.calcium100, closeTo(100, 0.001));
+  expect(nutriments.iron100, closeTo(1.2, 0.001));
+  expect(nutriments.zinc100, closeTo(1.4, 0.001));
+  expect(nutriments.phosphorus100, closeTo(120, 0.001));
+
+  expect(nutriments.vitaminA100, closeTo(140, 0.001));
+  expect(nutriments.vitaminC100, closeTo(16, 0.001));
+  expect(nutriments.vitaminD100, closeTo(4, 0.001));
+  expect(nutriments.vitaminB6100, closeTo(0.8, 0.001));
+  expect(nutriments.vitaminB12100, closeTo(2.4, 0.001));
+  expect(nutriments.niacin100, closeTo(3.6, 0.001));
+
+  expect(result.intakes.single.amount, 50);
+  expect(result.intakes.single.unit, 'g');
+});
+
 }
