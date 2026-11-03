@@ -42,28 +42,10 @@ class ImportRecipesJsonUsecase {
 
     final parseResult = JsonRecipeImporter.parse(content);
 
-    for (final recipe in parseResult.recipes) {
-      // SaveRecipeUseCase recomputes nutrition on save, matching the CSV
-      // and recipe-builder paths so values land identical regardless of
-      // entry point.
-      await _saveRecipeUseCase.save(recipe);
-    }
-
-    return ImportRecipesJsonResult(
-      imported: parseResult.recipes.length,
-      skippedRecipes: parseResult.errors.length,
-      errorMessages: parseResult.errors,
-    );
-  }
-}
-Importer.parse(content);
-
     for (final imported in parseResult.recipes) {
       // SaveRecipeUseCase recomputes nutrition on save, matching the CSV
       // and recipe-builder paths so values land identical regardless of
-      // entry point. `totalWeightOverridden` is threaded through so an
-      // explicit `totalWeight` in the JSON survives the recompute instead
-      // of collapsing back to the ingredient sum (#1139).
+      // entry point. Preserve an explicit totalWeight from the JSON.
       await _saveRecipeUseCase.save(
         imported.recipe,
         totalWeightOverridden: imported.totalWeightOverridden,

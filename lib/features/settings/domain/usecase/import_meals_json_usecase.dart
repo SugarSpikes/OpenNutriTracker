@@ -133,25 +133,6 @@ class ImportMealsJsonUsecase {
     final totalCarbsGoal = await _getMacroGoalUsecase.getCarbsGoal(totalKcalGoal);
     final totalFatGoal = await _getMacroGoalUsecase.getFatsGoal(totalKcalGoal);
     final totalProteinGoal = await _getMacroGoalUsecase.getProteinsGoal(totalKcalGoal);
-    await _addTrackedDayUsecase.addNewTrackedDay(
-      day,
-      totalKcalGoal,
-      totalCarbsGoal,
-      totalFatGoal,
-      totalProteinGoal,
-    );
-  }
-}
-DayUsecase.hasTrackedDay(day);
-    if (hasTrackedDay) return;
-    final totalKcalGoal = await _getKcalGoalUsecase.getKcalGoal();
-    final totalCarbsGoal = await _getMacroGoalUsecase.getCarbsGoal(
-      totalKcalGoal,
-    );
-    final totalFatGoal = await _getMacroGoalUsecase.getFatsGoal(totalKcalGoal);
-    final totalProteinGoal = await _getMacroGoalUsecase.getProteinsGoal(
-      totalKcalGoal,
-    );
     await _addTrackedDayUsecase.addNewTrackedDayIfAbsent(
       day,
       totalKcalGoal,
