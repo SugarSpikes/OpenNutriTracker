@@ -67,7 +67,7 @@ class ImportMealsJsonUsecase {
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
-    if (picked == null || picked.isEmpty || picked.first.path == null) {
+    if (picked.isEmpty || picked.first.path == null) {
       return null;
     }
     final file = File(picked.first.path!);

@@ -35,7 +35,7 @@ class ImportRecipesJsonUsecase {
                 type: FileType.custom,
                 allowedExtensions: ['json'],
               );
-              if (files == null || files.isEmpty) {
+              if (files.isEmpty) {
                 return null;
               }
               return files.first;
