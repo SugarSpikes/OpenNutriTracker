@@ -33,11 +33,11 @@ class ImportRecipesJsonUsecase {
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
-    if (picked == null || picked.files.single.path == null) {
+    if (picked == null || picked.isEmpty || picked.first.path == null) {
       return null;
     }
 
-    final file = File(picked.files.single.path!);
+    final file = File(picked.first.path!);
     final content = await file.readAsString(encoding: utf8);
 
     final parseResult = JsonRecipeImporter.parse(content);
