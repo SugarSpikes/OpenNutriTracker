@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:opennutritracker/core/utils/reload_diary_and_trends.dart';
 import 'package:opennutritracker/core/utils/share_intent_service.dart';
 import 'package:opennutritracker/features/home/presentation/bloc/home_bloc.dart';
-import 'package:opennutritracker/features/home/presentation/bloc/home_event.dart';
 import 'package:opennutritracker/features/settings/domain/usecase/import_meals_json_usecase.dart';
 import 'package:opennutritracker/core/domain/usecase/get_config_usecase.dart';
 import 'package:opennutritracker/core/presentation/widgets/add_item_bottom_sheet.dart';
