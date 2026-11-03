@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:opennutritracker/core/domain/usecase/save_recipe_usecase.dart';
 import 'package:opennutritracker/core/utils/json_recipe_importer.dart';
 
+typedef RecipeJsonFilePicker = Future<PlatformFile?> Function();
+
 class ImportRecipesJsonResult {
   final int imported;
   final int skippedRecipes;
@@ -19,33 +21,42 @@ class ImportRecipesJsonResult {
 
 /// Picks a `.json` file from disk, validates the content via
 /// [JsonRecipeImporter.parse], and persists each successfully-parsed
-/// recipe via [SaveRecipeUseCase] — symmetric with
-/// [ImportRecipesCsvUsecase] so the UI can treat both import paths
-/// identically.
+/// recipe via [SaveRecipeUseCase].
 class ImportRecipesJsonUsecase {
   final SaveRecipeUseCase _saveRecipeUseCase;
+  final RecipeJsonFilePicker _pickFile;
 
-  ImportRecipesJsonUsecase(this._saveRecipeUseCase);
+  ImportRecipesJsonUsecase(
+    this._saveRecipeUseCase, {
+    RecipeJsonFilePicker? pickFile,
+  }) : _pickFile = pickFile ??
+            (() async {
+              final files = await FilePicker.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['json'],
+              );
+              if (files == null || files.isEmpty) {
+                return null;
+              }
+              return files.first;
+            });
 
-  /// Returns null when the user cancelled the file picker.
+  /// Returns null when the user cancels the file picker.
   Future<ImportRecipesJsonResult?> importFromPickedFile() async {
-    final picked = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    if (picked == null || picked.isEmpty || picked.first.path == null) {
+    final picked = await _pickFile();
+
+    if (picked == null || picked.path == null) {
       return null;
     }
 
-    final file = File(picked.first.path!);
+    final file = File(picked.path!);
     final content = await file.readAsString(encoding: utf8);
 
     final parseResult = JsonRecipeImporter.parse(content);
 
     for (final imported in parseResult.recipes) {
-      // SaveRecipeUseCase recomputes nutrition on save, matching the CSV
-      // and recipe-builder paths so values land identical regardless of
-      // entry point. Preserve an explicit totalWeight from the JSON.
+      // SaveRecipeUseCase recomputes nutrition on save.
+      // Preserve an explicit totalWeight from the JSON.
       await _saveRecipeUseCase.save(
         imported.recipe,
         totalWeightOverridden: imported.totalWeightOverridden,
