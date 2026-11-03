@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:opennutritracker/core/utils/reload_diary_and_trends.dart';
+import 'package:opennutritracker/core/utils/share_intent_service.dart';
+import 'package:opennutritracker/features/home/presentation/bloc/home_bloc.dart';
+import 'package:opennutritracker/features/home/presentation/bloc/home_event.dart';
+import 'package:opennutritracker/features/settings/domain/usecase/import_meals_json_usecase.dart';
 import 'package:opennutritracker/core/domain/usecase/get_config_usecase.dart';
 import 'package:opennutritracker/core/presentation/widgets/add_item_bottom_sheet.dart';
 import 'package:opennutritracker/core/presentation/widgets/demo_mode_banner.dart';
@@ -30,6 +35,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   /// platform side clears the flag on read, so a race would not open the
   /// screen twice — but it would spend two channel round trips finding out.
   bool _checkingHealthRationale = false;
+  bool _handlingSharedText = false;
 
   late List<Widget> _bodyPages;
   late List<PreferredSizeWidget> _appbarPages;
@@ -38,12 +44,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ShareIntentService.setOnSharedText(_handleSharedMeal);
+    // Also consume a share that launched a cold-started app. The native side
+    // holds the payload until this first post-frame read.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleSharedMeal());
     _loadConfigDrivenUi();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    ShareIntentService.setOnSharedText(() {});
     super.dispose();
   }
 
@@ -55,6 +66,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // that an intent arrived.
     if (state == AppLifecycleState.resumed) {
       _maybeOpenHealthRationale();
+      _handleSharedMeal();
     }
   }
 
@@ -77,6 +89,42 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _isDemoData = config.isDemoData);
     await _maybeOpenHealthRationale();
+  }
+
+  /// Automatically imports valid JSON text shared from another Android app.
+  /// Uses ImportMealsJsonUsecase, which delegates to the expanded 24-nutrient
+  /// JsonMealImporter; no confirmation dialog or second parser is involved.
+  Future<void> _handleSharedMeal() async {
+    if (!mounted || _handlingSharedText) return;
+    _handlingSharedText = true;
+    try {
+      final text = await ShareIntentService.consumeSharedText();
+      if (text == null || !mounted) return;
+
+      final result = await locator<ImportMealsJsonUsecase>()
+          .importFromJsonString(text);
+      if (!mounted) return;
+
+      if (result.imported > 0) {
+        locator<HomeBloc>().add(const LoadItemsEvent());
+        reloadDiaryAndTrends();
+      }
+
+      final message = result.imported > 0
+          ? 'Imported ${result.imported} meal(s)'
+              '${result.errorMessages.isEmpty ? '' : '; skipped ${result.errorMessages.length} invalid entr(y/ies)'}'
+          : 'No valid meals found in shared JSON';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not import shared JSON')),
+      );
+    } finally {
+      _handlingSharedText = false;
+    }
   }
 
   /// Opens the health-sync screen when Health Connect asked the app to explain

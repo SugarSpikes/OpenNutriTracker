@@ -21,6 +21,9 @@ class MainActivity : FlutterFragmentActivity() {
     private val localeChannelName = "com.opennutritracker/locale"
     private val healthRationaleChannelName = "com.opennutritracker/health_rationale"
     private val healthConnectChannelName = "com.opennutritracker/health_connect"
+    private val shareChannelName = "com.opennutritracker/share_intent"
+    private var pendingSharedText: String? = null
+    private var shareMethodChannel: MethodChannel? = null
 
     /**
      * Scope for the Health Connect reads, which are suspend functions.
@@ -132,6 +135,23 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // Keep shared text pending until Flutter explicitly consumes it.
+        pendingSharedText = pendingSharedText ?: extractSharedText(intent)
+        shareMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            shareChannelName,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getSharedText" -> {
+                        result.success(pendingSharedText)
+                        pendingSharedText = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
     }
 
     /**
@@ -192,9 +212,23 @@ class MainActivity : FlutterFragmentActivity() {
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         if (isHealthRationaleIntent(intent)) {
             healthRationalePending = true
         }
+        extractSharedText(intent)?.let { sharedText ->
+            pendingSharedText = sharedText
+            // Notify Dart immediately when the existing Flutter engine is alive.
+            // If Dart is not ready yet, getSharedText will retrieve the pending value later.
+            shareMethodChannel?.invokeMethod("sharedTextAvailable", null)
+        }
+    }
+
+    private fun extractSharedText(intent: Intent?): String? {
+        if (intent?.action != Intent.ACTION_SEND) return null
+        return intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
     }
 
     override fun onDestroy() {
