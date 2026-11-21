@@ -5,28 +5,6 @@
     <!-- #312: Notification reminders -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Health Connect: read-only, and only requested once workout import is
-         enabled in Settings → Health sync. Nothing is ever written back.
-
-         These two, and no more. Play's Health Connect permissions policy
-         rejected READ_BODY_FAT, READ_DISTANCE and READ_STEPS as excessive for
-         the features this app offers (enforced 8 Sept 2026), and the policy
-         asks for the minimum a feature needs rather than the minimum a
-         library happens to read.
-
-         READ_DISTANCE and READ_STEPS were only ever here because the health
-         plugin's workout read issues a DistanceRecord and a StepsRecord query
-         for every session and Health Connect fails the whole read without
-         them — their values were fetched and discarded, since energy is
-         attributed from the calorie records instead. The app now reads
-         sessions directly (HealthConnectWorkoutReader.kt), so neither is
-         needed.
-
-         READ_BODY_FAT personalised the workout calorie-credit suggestion.
-         That suggestion falls back to a BMI-derived percentile, which is what
-         Android now uses; iOS still reads body fat from HealthKit. -->
-    <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
-    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
 
     <!-- Provide required visibility configuration for API level 30 and above -->
     <queries>
@@ -38,16 +16,10 @@
             <action android:name="android.intent.action.SEND" />
             <data android:mimeType="*/*" />
         </intent>
-        <!-- Check whether Health Connect is installed or not -->
-        <package android:name="com.google.android.apps.healthdata" />
-        <intent>
-            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-        </intent>
     </queries>
 
    <application
         android:label="@string/app_name"
-        android:localeConfig="@xml/locales_config"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
@@ -73,11 +45,42 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Receive JSON text from Android Sharesheet, Tasker AutoShare, etc. -->
             <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/*" />
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <!-- Accept plain text and other text MIME variants (e.g. Tasker). -->
+                <data android:mimeType="text/*"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/json"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <!-- Some file providers label otherwise-valid JSON as generic binary. -->
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity>
+        <!-- #312: Notification scheduling receivers -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"/>
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
+pe="text/*" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

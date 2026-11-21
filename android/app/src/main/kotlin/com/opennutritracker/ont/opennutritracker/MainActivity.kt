@@ -1,75 +1,89 @@
 package com.opennutritracker.ont.opennutritracker
 
-import android.app.LocaleManager
 import android.content.Intent
-import android.os.Build
-import android.os.LocaleList
-import io.flutter.embedding.android.FlutterFragmentActivity
+import android.net.Uri
+import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 
-// FlutterFragmentActivity (rather than FlutterActivity) is required by the
-// health plugin: Health Connect permission requests go through
-// registerForActivityResult, which needs a ComponentActivity host.
-class MainActivity : FlutterFragmentActivity() {
-    private val localeChannelName = "com.opennutritracker/locale"
-    private val healthRationaleChannelName = "com.opennutritracker/health_rationale"
-    private val healthConnectChannelName = "com.opennutritracker/health_connect"
-    private val shareChannelName = "com.opennutritracker/share_intent"
+class MainActivity : FlutterActivity() {
+    private val channelName = "com.opennutritracker/share_intent"
+
+    // Holds shared JSON until Flutter consumes it.
     private var pendingSharedText: String? = null
-    private var shareMethodChannel: MethodChannel? = null
-
-    /**
-     * Scope for the Health Connect reads, which are suspend functions.
-     *
-     * Main dispatcher because a MethodChannel result has to be posted from the
-     * platform thread; the client's own reads move themselves off it. A
-     * SupervisorJob so one failed import cannot cancel the scope and leave
-     * every later read dead, and cancelled in [onDestroy] so a read in flight
-     * when the activity goes away does not answer into a dead channel.
-     */
-    private val healthConnectScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
-    /**
-     * Whether Health Connect started us to ask what the app wants health data
-     * for, and Dart has not picked it up yet.
-     *
-     * A flag that Dart pulls, rather than a call pushed at Dart, because the
-     * intent is known in onCreate while the Flutter engine and the widget tree
-     * that has to react to it are not ready until later. Pushing would mean
-     * racing engine startup for the one launch that most needs to work.
-     */
-    private var healthRationalePending = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // A cold start: the launching intent is the one held by the activity.
-        // Or-ing rather than assigning so an intent that arrived through
-        // onNewIntent while the engine was being rebuilt is not dropped.
-        healthRationalePending = healthRationalePending || isHealthRationaleIntent(intent)
+        // Capture a share that launched the app (cold start).
+        pendingSharedText = extractSharedText(intent)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, healthRationaleChannelName)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    // Reading clears the flag: the request is a one-shot event,
-                    // and leaving it set would reopen the screen on every
-                    // resume for the rest of the session.
-                    "consumePendingRequest" -> {
-                        result.success(healthRationalePending)
-                        healthRationalePending = false
+                    "getSharedText" -> {
+                        result.success(pendingSharedText)
+                        pendingSharedText = null
                     }
                     else -> result.notImplemented()
                 }
             }
+    }
 
-        // Finished workouts, read straight from Health Connect rather than
+    // Called when Android reuses this singleTop activity for another share.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingSharedText = extractSharedText(intent)
+    }
+
+    private fun extractSharedText(intent: Intent?): String? {
+        if (intent?.action != Intent.ACTION_SEND) return null
+
+        // File managers normally send the file URI in EXTRA_STREAM (and may
+        // also expose it through ClipData). Read it while Android's temporary
+        // URI permission is active; Flutter receives the actual UTF-8 JSON.
+        val sharedUri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+
+        if (sharedUri != null) {
+            return readSharedUri(sharedUri)
+        }
+
+        // Tasker/AutoShare and text-sharing apps normally use EXTRA_TEXT.
+        // Android defines this as CharSequence, not specifically String.
+        // Let the JSON importer validate the content rather than relying on
+        // MIME labels, which sharing apps do not always set consistently.
+        return intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+    }
+
+    private fun readSharedUri(uri: Uri): String? {
+        // A meal JSON import is small. Bound reads so an unrelated or
+        // unexpectedly large shared file cannot consume unbounded memory.
+        val maxBytes = 5 * 1024 * 1024
+        return try {
+            val input = contentResolver.openInputStream(uri) ?: return null
+            input.use { stream ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val count = stream.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > maxBytes) return null
+                    output.write(buffer, 0, count)
+                }
+                output.toString(Charsets.UTF_8.name())
+            }
+        } catch (error: Exception) {
+            android.util.Log.w("OpenNutriTracker", "Could not read shared JSON URI", error)
+            null
+        }
+    }
+}
+       // Finished workouts, read straight from Health Connect rather than
         // through the health plugin. See [HealthConnectWorkoutReader] for why:
         // in short, the plugin's workout read also reads distance and steps,
         // and Play's Health Connect permissions policy refused those two
